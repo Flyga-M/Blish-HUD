@@ -84,8 +84,26 @@ namespace Blish_HUD.Modules.UI.Views {
                 permissionCheckbox.Checked = set || !optional;
             }
 
+            int permissionCount = _permissionFlowPanel.Children.Count;
+
+            if (permissionCount > 6) {
+                int checkboxHeight = _permissionFlowPanel.Children.First().Height;
+                int rowHeight = checkboxHeight + (int)_permissionFlowPanel.ControlPadding.Y;
+
+                int additionalRows = (int)Math.Ceiling( (float)(permissionCount - 6) / 3.0f);
+
+                int additionalHeight = additionalRows * rowHeight;
+
+                _permissionFlowPanel.Height = _permissionFlowPanel.Parent.ContentRegion.Height + additionalHeight;
+                _permissionFlowPanel.CanScroll = true;
+            }
+            else {
+                _permissionFlowPanel.Height = _permissionFlowPanel.Parent.ContentRegion.Height;
+                _permissionFlowPanel.CanScroll = false;
+            }
+
             // Show "No permissions requested" if there are none
-            _messageLabel.Visible = !(_permissionFlowPanel.Visible = _permissionFlowPanel.Children.Count > 0);
+            _messageLabel.Visible = !(_permissionFlowPanel.Visible = permissionCount > 0);
         }
 
         private void ResetCheckboxStates() {
