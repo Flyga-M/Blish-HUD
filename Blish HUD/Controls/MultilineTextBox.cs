@@ -14,22 +14,59 @@ namespace Blish_HUD.Controls {
             set => SetProperty(ref _hideBackground, value);
         }
 
+        protected int[] _displayNewLineIndices = Array.Empty<int>();
+
+        /// <summary>
+        /// The indices of the added new line characters in the processed
+        /// <see cref="TextInputBase.DisplayText"/>.
+        /// </summary>
+        public int[] DisplayNewLineIndices => _displayNewLineIndices;
+
         public MultilineTextBox() {
             _multiline = true;
             _maxLength = 524288;
         }
 
+        /// <summary>
+        /// Calculates the actual cursor index (in reference to
+        /// <see cref="TextInputBase.Text"/>), if the <paramref name="displayIndex"/>
+        /// was calculated using the <see cref="TextInputBase.DisplayText"/>.
+        /// </summary>
+        protected int GetCursorIndexFromDisplayIndex(int displayIndex) {
+            int cursorIndex = displayIndex;
+            foreach (int displayNewLineIndex in _displayNewLineIndices) {
+                if (displayNewLineIndex > displayIndex) break;
+                cursorIndex--;
+            }
+
+            return cursorIndex;
+        }
+
+        /// <summary>
+        /// Calculates the display cursor index (in reference to
+        /// <see cref="TextInputBase.DisplayText"/>), if the <paramref name="cursorIndex"/>
+        /// was calculated using the <see cref="TextInputBase.Text"/>.
+        /// </summary>
+        protected int GetDisplayIndexFromCursorIndex(int cursorIndex) {
+            int displayIndex = cursorIndex;
+            foreach (int displayNewLineIndex in _displayNewLineIndices) {
+                if (displayNewLineIndex > displayIndex) break;
+                displayIndex++;
+            }
+            return displayIndex;
+        }
+
         protected override void MoveLine(int delta) {
             int newIndex = 0; // if targetLine is < 0, we set cursor index to 0
 
-            string[] lines = _text.Split(NEWLINE);
+            string[] lines = _displayText.Split(NEWLINE);
 
             var cursor = GetSplitIndex(_cursorIndex);
 
             int targetLine = cursor.Line + delta;
 
             if (targetLine >= lines.Length) {
-                newIndex = _text.Length;
+                newIndex = _displayText.Length;
             } else if (targetLine >= 0) {
                 float cursorLeft   = MeasureStringWidth(lines[cursor.Line].Substring(0, cursor.Character));
                 float minOffset    = cursorLeft;
@@ -53,20 +90,37 @@ namespace Blish_HUD.Controls {
                 }
             }
 
+            newIndex = GetCursorIndexFromDisplayIndex(newIndex);
+
             UserSetCursorIndex(newIndex);
             UpdateSelectionIfShiftDown();
+        }
+
+        /// <inheritdoc/>
+        protected override string ProcessDisplayText(string value) {
+            return ApplyWordWrap(value);
+        }
+
+        /// <summary>
+        /// Applies word-wrap to the <paramref name="value"/>.
+        /// </summary>
+        protected string ApplyWordWrap(string value) {
+            string displayText = DrawUtil.WrapText(_font, value, this._textRegion.Width, out int[] newLineIndices);
+            _displayNewLineIndices = newLineIndices;
+
+            return displayText;
         }
 
         public override int GetCursorIndexFromPosition(int x, int y) {
             x -= TEXT_LEFTPADDING;
             y -= TEXT_TOPPADDING;
 
-            string[] lines = _text.Split(NEWLINE);
+            string[] lines = _displayText.Split(NEWLINE);
 
             int predictedLine = y / _font.LineHeight;
 
             if (predictedLine > lines.Length - 1) {
-                return _text.Length;
+                return GetCursorIndexFromDisplayIndex(_displayText.Length);
             }
 
             var glyphs = _font.GetGlyphs(lines[predictedLine]);
@@ -85,21 +139,28 @@ namespace Blish_HUD.Controls {
                 charIndex += lines[i].Length + 1;
             }
 
-            return charIndex;
+            return GetCursorIndexFromDisplayIndex(charIndex);
         }
 
         private Rectangle   _textRegion       = Rectangle.Empty;
         private Rectangle[] _highlightRegions = Array.Empty<Rectangle>();
         private Rectangle   _cursorRegion     = Rectangle.Empty;
 
+        /// <remarks>
+        /// The <paramref name="index"/> refers to the cursorIndex (in reference to
+        /// <see cref="TextInputBase.Text"/>), while the return value is based on
+        /// the <see cref="TextInputBase.DisplayText"/>.
+        /// </remarks>
         private (int Line, int Character) GetSplitIndex(int index) {
             int lineIndex = 0;
             int charIndex = 0;
 
+            index = GetDisplayIndexFromCursorIndex(index);
+
             for (int i = 0; i < index; i++) {
                 charIndex++;
 
-                if (_text[i] == NEWLINE) {
+                if (_displayText[i] == NEWLINE) {
                     lineIndex++;
                     charIndex = 0;
                 }
@@ -114,7 +175,7 @@ namespace Blish_HUD.Controls {
 
             if (selectionLength <= 0 || selectionStart + selectionLength > _text.Length) return Array.Empty<Rectangle>();
 
-            string[] lines = _text.Split(NEWLINE);
+            string[] lines = _displayText.Split(NEWLINE);
 
             var startIndex = GetSplitIndex(selectionStart);
             var endIndex   = GetSplitIndex(selectionStart + selectionLength);
@@ -173,7 +234,7 @@ namespace Blish_HUD.Controls {
         private Rectangle CalculateCursorRegion() {
             var cursor = GetSplitIndex(_cursorIndex);
 
-            string[] lines = _text.Split(NEWLINE);
+            string[] lines = _displayText.Split(NEWLINE);
 
             float cursorLeft = MeasureStringWidth(lines[cursor.Line].Substring(0, cursor.Character));
 
@@ -194,6 +255,12 @@ namespace Blish_HUD.Controls {
             _textRegion       = CalculateTextRegion();
             _highlightRegions = CalculateHighlightRegions();
             _cursorRegion     = CalculateCursorRegion();
+            _displayText = ProcessDisplayText(_text);
+        }
+
+        protected override void HandleDelete() {
+            base.HandleDelete();
+            RecalculateLayout();
         }
 
         protected override void UpdateScrolling() { /* NOOP */ }
