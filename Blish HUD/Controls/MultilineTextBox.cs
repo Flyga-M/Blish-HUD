@@ -22,6 +22,27 @@ namespace Blish_HUD.Controls {
         /// </summary>
         public int[] DisplayNewLineIndices => _displayNewLineIndices;
 
+        private bool _disableWordWrap;
+
+        /// <summary>
+        /// Determines whether the automatic word-wrap will be disabled.
+        /// </summary>
+        public bool DisableWordWrap {
+            get => _disableWordWrap;
+            set => SetProperty(ref _disableWordWrap, value);
+        }
+
+        private char[] _wrapCharacters;
+
+        /// <summary>
+        /// The characters, that are used to wrap a word, if it does not fit the current line
+        /// it's on.
+        /// </summary>
+        public char[] WrapCharacters {
+            get => _wrapCharacters ?? Array.Empty<char>();
+            set => SetProperty(ref _wrapCharacters, value);
+        }
+
         public MultilineTextBox() {
             _multiline = true;
             _maxLength = 524288;
@@ -105,7 +126,12 @@ namespace Blish_HUD.Controls {
         /// Applies word-wrap to the <paramref name="value"/>.
         /// </summary>
         protected string ApplyWordWrap(string value) {
-            string displayText = DrawUtil.WrapText(_font, value, this._textRegion.Width, out int[] newLineIndices);
+            if (DisableWordWrap) {
+                _displayNewLineIndices = Array.Empty<int>();
+                return value;
+            }
+
+            string displayText = DrawUtil.WrapText(_font, value, this._textRegion.Width, WrapCharacters, out int[] newLineIndices);
             _displayNewLineIndices = newLineIndices;
 
             return displayText;
