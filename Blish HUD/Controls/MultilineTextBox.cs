@@ -29,7 +29,11 @@ namespace Blish_HUD.Controls {
         /// </summary>
         public bool DisableWordWrap {
             get => _disableWordWrap;
-            set => SetProperty(ref _disableWordWrap, value);
+            set {
+                if (SetProperty(ref _disableWordWrap, value)) {
+                   RecalculateLayout();
+                }
+            }
         }
 
         private char[] _wrapCharacters;
@@ -40,7 +44,11 @@ namespace Blish_HUD.Controls {
         /// </summary>
         public char[] WrapCharacters {
             get => _wrapCharacters ?? Array.Empty<char>();
-            set => SetProperty(ref _wrapCharacters, value);
+            set {
+                if (SetProperty(ref _wrapCharacters, value)) {
+                    RecalculateLayout();
+                }
+            }
         }
 
         public MultilineTextBox() {
@@ -278,10 +286,10 @@ namespace Blish_HUD.Controls {
         }
 
         public override void RecalculateLayout() {
+            _displayText = ProcessDisplayText(_text);
             _textRegion       = CalculateTextRegion();
             _highlightRegions = CalculateHighlightRegions();
             _cursorRegion     = CalculateCursorRegion();
-            _displayText = ProcessDisplayText(_text);
         }
 
         protected override void HandleDelete() {
