@@ -38,6 +38,36 @@ namespace Blish_HUD.Controls {
             set => SetProperty(ref _hideBackground, value);
         }
 
+        private bool _masked;
+
+        /// <summary>
+        /// Gets or sets if the input should be shown as masked. Copying the content will be disabled.
+        /// </summary>
+        public bool Masked {
+            get => _masked;
+            set {
+                if (SetProperty(ref _masked, value, true)) {
+                    _displayText = ProcessDisplayText(_text);
+                    RecalculateLayout();
+                }
+            }
+        }
+
+        private char _maskingChar = '*';
+
+        /// <summary>
+        /// Gets or sets the character used for the masking.
+        /// </summary>
+        public char MaskingChar {
+            get => _maskingChar;
+            set {
+                if (SetProperty(ref _maskingChar, value, true)) {
+                    _displayText = ProcessDisplayText(_text);
+                    RecalculateLayout();
+                }
+            }
+        }
+
         protected virtual void OnEnterPressed(EventArgs e) {
             this.Focused = false;
 
@@ -66,12 +96,28 @@ namespace Blish_HUD.Controls {
             }
         }
 
+        /// <inheritdoc/>
+        protected override string ProcessDisplayText(string value) {
+            return ApplyMasking(value);
+        }
+
+        /// <summary>
+        /// Applies masking to the <paramref name="value"/>.
+        /// </summary>
+        protected string ApplyMasking(string value) {
+            if (!Masked) {
+                return value;
+            }
+
+            return new string(_maskingChar, value.Length);
+        }
+
         public override int GetCursorIndexFromPosition(int x, int y) {
             x -= TEXT_HORIZONTALPADDING;
 
             int charIndex = 0;
 
-            var glyphs = _font.GetGlyphs(_text);
+            var glyphs = _font.GetGlyphs(_displayText);
 
             foreach (var glyph in glyphs) {
                 if (glyph.Position.X + glyph.FontRegion.Width / 2f > _horizontalOffset + x) {
@@ -103,8 +149,8 @@ namespace Blish_HUD.Controls {
 
             if (selectionLength <= 0 || selectionStart + selectionLength > _text.Length) return Rectangle.Empty;
 
-            float highlightLeftOffset = MeasureStringWidth(_text.Substring(0, selectionStart));
-            float highlightWidth      = MeasureStringWidth(_text.Substring(selectionStart, selectionLength));
+            float highlightLeftOffset = MeasureStringWidth(_displayText.Substring(0, selectionStart));
+            float highlightWidth      = MeasureStringWidth(_displayText.Substring(selectionStart, selectionLength));
 
             switch (this.HorizontalAlignment)
             {
@@ -124,14 +170,14 @@ namespace Blish_HUD.Controls {
         }
 
         private Rectangle CalculateCursorRegion() {
-            float textOffset = MeasureStringWidth(_text.Substring(0, _cursorIndex));
+            float textOffset = MeasureStringWidth(_displayText.Substring(0, _cursorIndex));
 
             switch (this.HorizontalAlignment) {
                 case HorizontalAlignment.Center:
-                    textOffset += (this.Width - MeasureStringWidth(_text)) / 2f - TEXT_HORIZONTALPADDING;
+                    textOffset += (this.Width - MeasureStringWidth(_displayText)) / 2f - TEXT_HORIZONTALPADDING;
                     break;
                 case HorizontalAlignment.Right:
-                    textOffset += this.Width - MeasureStringWidth(_text) - TEXT_HORIZONTALPADDING * 2;
+                    textOffset += this.Width - MeasureStringWidth(_displayText) - TEXT_HORIZONTALPADDING * 2;
                     break;
                 default: break;
             }
@@ -148,8 +194,18 @@ namespace Blish_HUD.Controls {
             _cursorRegion    = CalculateCursorRegion();
         }
 
+        protected override void HandleCopy() {
+            if (_masked) return;
+            base.HandleCopy();
+        }
+
+        protected override void HandleCut() {
+            if (_masked) return;
+            base.HandleCut();
+        }
+
         protected override void UpdateScrolling() {
-            float lineWidth = MeasureStringWidth(_text.Substring(0, _cursorIndex));
+            float lineWidth = MeasureStringWidth(_displayText.Substring(0, _cursorIndex));
 
             if (_cursorIndex > _prevCursorIndex) {
                 _horizontalOffset = (int)Math.Max(_horizontalOffset, lineWidth - _size.X);
